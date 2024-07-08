@@ -1,4 +1,5 @@
 #include "cell.h"
+#include "sheet.h"
 
 #include <cassert>
 #include <iostream>
@@ -74,7 +75,7 @@ private:
 
 class Cell::FormulaImpl : public Impl {
 public:
-    FormulaImpl(SheetInterface& sheet, std::string formula)
+    FormulaImpl(Sheet& sheet, std::string formula)
         : sheet_(sheet), formula_(ParseFormula(formula))
     {}
 
@@ -109,17 +110,17 @@ public:
         return cache_.has_value();
     }
 private:
-    SheetInterface& sheet_;
+    Sheet& sheet_;
     std::unique_ptr<FormulaInterface> formula_;
     std::optional<CellInterface::Value> cache_;
 };
 
-Cell::Cell(SheetInterface& sheet)
-    : sheet_(sheet)
+Cell::Cell(Sheet& sheet)
+    : impl_(std::make_unique<EmptyImpl>()),
+    sheet_(sheet)
 {}
 
-Cell::~Cell()
-{
+Cell::~Cell() {
     if (impl_) {
         impl_.reset(nullptr);
     }
@@ -163,10 +164,10 @@ bool Cell::CheckCyclicDependencies(const Cell* cur_cell_ptr, const Position& end
         if (cell == end) {
             return true;
         }
-        const Cell* ref_cell_ptr = dynamic_cast<const Cell*>(sheet_.GetCell(cell));
-        if (!cur_cell_ptr) {
+        const Cell* ref_cell_ptr = sheet_.GetCell(cell);
+        if (!ref_cell_ptr) {
             sheet_.SetCell(cell, "");
-            ref_cell_ptr = dynamic_cast<const Cell*>(sheet_.GetCell(cell));
+            ref_cell_ptr = sheet_.GetCell(cell);
         }
         if (cur_cell_ptr == ref_cell_ptr) {
             return true;
@@ -180,6 +181,7 @@ bool Cell::CheckCyclicDependencies(const Cell* cur_cell_ptr, const Position& end
 
 void Cell::InvalidateCache() {
     impl_->InvalidateCache();
+    dependent_cells_.clear();
 }
 
 bool Cell::IsCacheValid() const {

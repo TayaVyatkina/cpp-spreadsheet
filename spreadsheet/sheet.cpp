@@ -8,7 +8,6 @@
 #include <iostream>
 #include <optional>
 
-
 void Sheet::SetCell(Position pos, std::string text) {
     if (!pos.IsValid()) {
         throw InvalidPositionException("Invalid position!");
@@ -21,21 +20,23 @@ void Sheet::SetCell(Position pos, std::string text) {
         sheet_.at(pos.row).reserve(pos.col + 1);
         sheet_.at(pos.row).resize(pos.col + 1);
     }
-    auto cell = GetCell(pos);
 
+    auto cell = GetCell(pos);
     if (cell) {
+        if (cell->GetText() == text) { return; }
         std::string old_text = cell->GetText();
         InvalidateCell(pos);
-        DeleteDependencies(pos);
-        dynamic_cast<Cell*>(cell)->Clear();
-        dynamic_cast<Cell*>(cell)->Set(text);
-        if (dynamic_cast<Cell*>(cell)->CheckCyclicDependencies(dynamic_cast<Cell*>(cell), pos)) {
-            dynamic_cast<Cell*>(cell)->Set(std::move(old_text));
+        cell->Clear();
+        cell->Set(text);
+
+        if (cell->CheckCyclicDependencies(cell, pos)) {
+            cell->Set(std::move(old_text));
             throw CircularDependencyException("Cycle dependency!");
         }
-        for (const auto& ref_cell : dynamic_cast<Cell*>(cell)->GetReferencedCells()) {
-            AddDependentCell(ref_cell, pos);
+        for (const auto& ref_cell : cell->GetReferencedCells()) {
+            GetCell(ref_cell)->AddDependentCell(pos);
         }
+
     }
     else {
         auto new_cell = std::make_unique<Cell>(*this);
@@ -45,7 +46,7 @@ void Sheet::SetCell(Position pos, std::string text) {
             throw CircularDependencyException("Cycle dependency!");
         }
         for (const auto& ref_cell : new_cell.get()->GetReferencedCells()) {
-            AddDependentCell(ref_cell, pos);
+            GetCell(ref_cell)->AddDependentCell(pos);
         }
         sheet_.at(pos.row).at(pos.col) = std::move(new_cell);
     }
@@ -64,7 +65,7 @@ const CellInterface* Sheet::GetCell(Position pos) const {
     return nullptr;
 }
 
-CellInterface* Sheet::GetCell(Position pos) {
+Cell* Sheet::GetCell(Position pos) {
     if (!pos.IsValid()) {
         throw InvalidPositionException("Invalid position!");
     }
@@ -146,26 +147,11 @@ void Sheet::PrintTexts(std::ostream& output) const {
 }
 
 void Sheet::InvalidateCell(const Position& pos) {
-    for (const auto& dependent_cell : GetDependentCells(pos)) {
-        auto cell = GetCell(dependent_cell);
-        dynamic_cast<Cell*>(cell)->InvalidateCache();
-        InvalidateCell(dependent_cell);
+    for (const auto& dependent_cell : GetCell(pos)->GetDependentCells()) {
+        GetCell(dependent_cell)->InvalidateCache();
     }
-}
+    GetCell(pos)->InvalidateCache();
 
-void Sheet::AddDependentCell(const Position& main_cell, const Position& dependent_cell) {
-    cells_dependencies_[main_cell].insert(dependent_cell);
-}
-
-const std::set<Position> Sheet::GetDependentCells(const Position& pos) {
-    if (cells_dependencies_.count(pos) != 0) {
-        return cells_dependencies_.at(pos);
-    }
-    return {};
-}
-
-void Sheet::DeleteDependencies(const Position& pos) {
-    cells_dependencies_.erase(pos);
 }
 
 bool Sheet::IsCell(Position pos) const {

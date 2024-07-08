@@ -15,7 +15,7 @@ public:
 
     const CellInterface* GetCell(Position pos) const override;
 
-    CellInterface* GetCell(Position pos) override;
+    Cell* GetCell(Position pos) override;
 
     void ClearCell(Position pos) override;
 
@@ -25,13 +25,8 @@ public:
     void PrintValues(std::ostream& output) const override;
 
     void InvalidateCell(const Position& pos);
-    void AddDependentCell(const Position& main_cell, const Position& dependent_cell);
-    const std::set<Position> GetDependentCells(const Position& pos);
-    void DeleteDependencies(const Position& pos);
 
 private:
     std::vector<std::vector<std::unique_ptr<Cell>>> sheet_ = {};
-    std::map<Position, std::set<Position>> cells_dependencies_;
-
     bool IsCell(Position pos) const;
 };
