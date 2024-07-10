@@ -13,41 +13,43 @@ public:
     explicit Cell(Sheet& sheet);
     ~Cell();
 
-    void Set(const std::string& text);
+    void Set(const std::string& text, Position pos);
     void Clear();
 
     CellInterface::Value GetValue() const override;
     std::string GetText() const override;
     std::vector<Position> GetReferencedCells() const override;
-    std::vector<Position> GetDependentCells() const {
-        return std::vector<Position>(dependent_cells_.begin(), dependent_cells_.end());
+    
+    bool operator==(const Cell* other) {
+        return this == other;
     }
+    class PositionHasher {
+    public:
+        size_t operator()(const Cell* cell) const {
+            if (cell == nullptr) {
+                return 0;
+            }
+            return static_cast<size_t>(hasher_(cell->GetText()));
+        }
+    private:
+        std::hash<std::string> hasher_;
 
-    bool CheckCyclicDependencies(const Cell* start_cell_ptr, const Position& end_pos) const;
+    };
+   
+    std::unordered_set<Cell*, PositionHasher> GetDependentCells() const;  
     void InvalidateCache();
     bool IsCacheValid() const;
-
-
-    void AddDependentCell(const Position& pos) {
-        dependent_cells_.insert(pos);
-    }
+    
+    void AddDependentCell(Cell* pos);
+    
 private:
     class Impl;
     class EmptyImpl;
     class TextImpl;
     class FormulaImpl;
-
     std::unique_ptr<Impl> impl_;
     Sheet& sheet_;
-
-    class PositionHasher {
-    public:
-        size_t operator()(const Position& pos) const {
-            return static_cast<size_t>(hasher_(pos.row * 13 + pos.col * 31));
-        }
-    private:
-        std::hash<int> hasher_;
-    };
-
-    std::unordered_set<Position, PositionHasher> dependent_cells_;
+    std::unordered_set<Cell*, PositionHasher> dependent_cells_;  
+    bool CheckCyclicDependencies(const std::vector<Position>&, const Position&) const;
+    
 };

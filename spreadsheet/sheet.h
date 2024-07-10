@@ -15,7 +15,9 @@ public:
 
     const CellInterface* GetCell(Position pos) const override;
 
-    Cell* GetCell(Position pos) override;
+    CellInterface* GetCell(Position pos) override;
+
+    Cell* GetConcreteCell(Position pos) const;
 
     void ClearCell(Position pos) override;
 
@@ -24,7 +26,7 @@ public:
     void PrintTexts(std::ostream& output) const override;
     void PrintValues(std::ostream& output) const override;
 
-    void InvalidateCell(const Position& pos);
+    //void InvalidateCell(const Position& pos);
 
 private:
     std::vector<std::vector<std::unique_ptr<Cell>>> sheet_ = {};

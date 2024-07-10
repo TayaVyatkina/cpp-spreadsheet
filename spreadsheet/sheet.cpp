@@ -21,35 +21,29 @@ void Sheet::SetCell(Position pos, std::string text) {
         sheet_.at(pos.row).resize(pos.col + 1);
     }
 
-    auto cell = GetCell(pos);
+    auto cell = GetConcreteCell(pos);
     if (cell) {
         if (cell->GetText() == text) { return; }
-        std::string old_text = cell->GetText();
-        InvalidateCell(pos);
-        cell->Clear();
-        cell->Set(text);
-
-        if (cell->CheckCyclicDependencies(cell, pos)) {
-            cell->Set(std::move(old_text));
-            throw CircularDependencyException("Cycle dependency!");
-        }
-        for (const auto& ref_cell : cell->GetReferencedCells()) {
-            GetCell(ref_cell)->AddDependentCell(pos);
-        }
-
+        cell->Set(text, pos);
     }
     else {
         auto new_cell = std::make_unique<Cell>(*this);
-        new_cell->Set(text);
-
-        if (new_cell.get()->CheckCyclicDependencies(new_cell.get(), pos)) {
-            throw CircularDependencyException("Cycle dependency!");
-        }
-        for (const auto& ref_cell : new_cell.get()->GetReferencedCells()) {
-            GetCell(ref_cell)->AddDependentCell(pos);
-        }
+        new_cell->Set(text, pos);
         sheet_.at(pos.row).at(pos.col) = std::move(new_cell);
     }
+}
+
+CellInterface* Sheet::GetCell(Position pos) {
+    if (!pos.IsValid()) {
+        throw InvalidPositionException("Invalid position!");
+    }
+
+    if (IsCell(pos)) {
+        if (sheet_.at(pos.row).at(pos.col)) {
+            return sheet_.at(pos.row).at(pos.col).get();
+        }
+    }
+    return nullptr;
 }
 
 const CellInterface* Sheet::GetCell(Position pos) const {
@@ -65,7 +59,7 @@ const CellInterface* Sheet::GetCell(Position pos) const {
     return nullptr;
 }
 
-Cell* Sheet::GetCell(Position pos) {
+Cell* Sheet::GetConcreteCell(Position pos) const {
     if (!pos.IsValid()) {
         throw InvalidPositionException("Invalid position!");
     }
@@ -82,9 +76,21 @@ void Sheet::ClearCell(Position pos) {
     if (!pos.IsValid()) {
         throw InvalidPositionException("Invalid position!");
     }
-    if (IsCell(pos)) {
-        sheet_.at(pos.row).at(pos.col).reset();
-    }
+    if (IsCell(pos) && sheet_.at(pos.row).at(pos.col)) {
+        if (sheet_.at(pos.row).at(pos.col).get()->GetDependentCells().empty()) {
+            sheet_.at(pos.row).at(pos.col).reset();
+        }
+        else {
+            // clear cache of dependent cells
+            for (const auto& cell : sheet_.at(pos.row).at(pos.col).get()->GetDependentCells()) {
+                cell->InvalidateCache();
+            }
+            // set EmptyImpl
+            sheet_.at(pos.row).at(pos.col).get()->Clear();
+        }
+        
+        
+    }   
 }
 
 Size Sheet::GetPrintableSize() const {
@@ -146,13 +152,12 @@ void Sheet::PrintTexts(std::ostream& output) const {
     }
 }
 
-void Sheet::InvalidateCell(const Position& pos) {
-    for (const auto& dependent_cell : GetCell(pos)->GetDependentCells()) {
-        GetCell(dependent_cell)->InvalidateCache();
-    }
-    GetCell(pos)->InvalidateCache();
-
-}
+//void Sheet::InvalidateCell(const Position& pos) {
+//    for (const auto& dependent_cell : GetConcreteCell(pos)->GetDependentCells()) {
+//        dependent_cell->InvalidateCache();
+//    }
+//    GetConcreteCell(pos)->InvalidateCache();
+//}
 
 bool Sheet::IsCell(Position pos) const {
     return (pos.row < static_cast<int>(sheet_.size())) && (pos.col < static_cast<int>(sheet_.at(pos.row).size()));

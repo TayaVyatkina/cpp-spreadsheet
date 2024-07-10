@@ -6,6 +6,7 @@
 #include <string>
 #include <optional>
 #include <cmath>
+#include <memory>
 
 class Cell::Impl {
 public:
@@ -126,20 +127,52 @@ Cell::~Cell() {
     }
 }
 
-void Cell::Set(const std::string& text) {
+void Cell::Set(const std::string& text, Position pos) {
+    std::unique_ptr<Impl> new_impl;
+   
     if (text.empty()) {
-        impl_ = std::make_unique<EmptyImpl>();
-        return;
+        new_impl = std::make_unique<EmptyImpl>();
     }
-    if (text[0] != FORMULA_SIGN || (text[0] == FORMULA_SIGN && text.size() == 1)) {
-        impl_ = std::make_unique<TextImpl>(text);
-        return;
+    else if (text[0] != FORMULA_SIGN || (text[0] == FORMULA_SIGN && text.size() == 1)) {
+        new_impl = std::make_unique<TextImpl>(text);
     }
-    try {
-        impl_ = std::make_unique<FormulaImpl>(sheet_, std::string{ text.begin() + 1, text.end() });
+    else {
+        try {
+            new_impl = std::make_unique<FormulaImpl>(sheet_, std::string{ text.begin() + 1, text.end() });
+        }
+        catch (...) {
+            throw FormulaException("Parsing error!");
+        }
+    } 
+    
+    const auto cur_ref_cells = new_impl->GetReferencedCells();
+    if (!cur_ref_cells.empty()) {
+        if (CheckCyclicDependencies(cur_ref_cells, pos)) {
+            throw CircularDependencyException("Circular dependency!");
+        }      
+    }  
+    std::unique_ptr<Impl> old_impl = std::move(impl_);
+    impl_ = std::move(new_impl);
+
+    //For each ref cell, clear the reference from dependent_cells about the current cell
+    for (const auto& pos : old_impl.get()->GetReferencedCells()) {
+        Cell* refrenced = sheet_.GetConcreteCell(pos);
+        refrenced->dependent_cells_.erase(this);
     }
-    catch (...) {
-        throw FormulaException("Parsing error!");
+    //set new reference in dependent_cells_ of referenced cells
+    for (const auto& pos : impl_->GetReferencedCells()) {
+
+        Cell* refrenced = sheet_.GetConcreteCell(pos);
+
+        if (!refrenced) {
+            sheet_.SetCell(pos, "");
+            refrenced = sheet_.GetConcreteCell(pos);
+        }
+        refrenced->AddDependentCell(this);
+    }
+    // invalidate cache in dependent cells
+    for (const auto& refrenced : dependent_cells_) {
+        refrenced->InvalidateCache();
     }
 }
 
@@ -159,29 +192,61 @@ std::vector<Position> Cell::GetReferencedCells() const {
     return impl_.get()->GetReferencedCells();
 }
 
-bool Cell::CheckCyclicDependencies(const Cell* cur_cell_ptr, const Position& end) const {
-    for (const auto& cell : GetReferencedCells()) {
+std::unordered_set<Cell*, Cell::PositionHasher> Cell::GetDependentCells() const {
+    return dependent_cells_;
+}
+void Cell::AddDependentCell(Cell* pos) {
+    dependent_cells_.insert(pos);
+}
+bool Cell::CheckCyclicDependencies(const std::vector<Position>& cur_cell_ptrs, const Position& end) const {
+    for (const auto& cell : cur_cell_ptrs) {
         if (cell == end) {
             return true;
         }
-        const Cell* ref_cell_ptr = sheet_.GetCell(cell);
+        const Cell* ref_cell_ptr = sheet_.GetConcreteCell(cell);
         if (!ref_cell_ptr) {
             sheet_.SetCell(cell, "");
-            ref_cell_ptr = sheet_.GetCell(cell);
+            ref_cell_ptr = sheet_.GetConcreteCell(cell);
         }
-        if (cur_cell_ptr == ref_cell_ptr) {
+        if (this == ref_cell_ptr) {
             return true;
         }
-        if (ref_cell_ptr->CheckCyclicDependencies(cur_cell_ptr, end)) {
+        if (ref_cell_ptr->CheckCyclicDependencies(ref_cell_ptr->GetReferencedCells(), end)) {
             return true;
         }
     }
     return false;
 }
 
+//bool Cell::CheckCyclicDependencies(const std::vector<Position>& cur_ref_cells) const {
+//    std::set<const Cell*> set_of_cur_ref_cells, visited;
+//    std::vector<const Cell*> need_to_visit;
+//
+//    for (auto pos : cur_ref_cells) {
+//        set_of_cur_ref_cells.insert(sheet_.GetConcreteCell(pos));
+//        
+//    }
+//    need_to_visit.push_back(this);
+//    while (!need_to_visit.empty()) {
+//        const Cell* cur = need_to_visit.back();
+//        need_to_visit.pop_back();
+//        visited.insert(cur);
+//        if (set_of_cur_ref_cells.find(cur) == set_of_cur_ref_cells.end()) {
+//            for (const Cell* dependent : cur->dependent_cells_) {
+//                if (visited.find(dependent) == visited.end()) {
+//                    need_to_visit.push_back(dependent);
+//                }
+//            }
+//        }
+//        else {
+//            return true;
+//        }
+//    }
+//    return false;
+//}
+
 void Cell::InvalidateCache() {
     impl_->InvalidateCache();
-    dependent_cells_.clear();
 }
 
 bool Cell::IsCacheValid() const {
