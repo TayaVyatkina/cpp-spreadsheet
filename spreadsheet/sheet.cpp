@@ -152,12 +152,6 @@ void Sheet::PrintTexts(std::ostream& output) const {
     }
 }
 
-//void Sheet::InvalidateCell(const Position& pos) {
-//    for (const auto& dependent_cell : GetConcreteCell(pos)->GetDependentCells()) {
-//        dependent_cell->InvalidateCache();
-//    }
-//    GetConcreteCell(pos)->InvalidateCache();
-//}
 
 bool Sheet::IsCell(Position pos) const {
     return (pos.row < static_cast<int>(sheet_.size())) && (pos.col < static_cast<int>(sheet_.at(pos.row).size()));

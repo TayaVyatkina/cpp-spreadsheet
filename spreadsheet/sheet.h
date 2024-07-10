@@ -26,8 +26,6 @@ public:
     void PrintTexts(std::ostream& output) const override;
     void PrintValues(std::ostream& output) const override;
 
-    //void InvalidateCell(const Position& pos);
-
 private:
     std::vector<std::vector<std::unique_ptr<Cell>>> sheet_ = {};
     bool IsCell(Position pos) const;

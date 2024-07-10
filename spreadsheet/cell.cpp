@@ -218,33 +218,6 @@ bool Cell::CheckCyclicDependencies(const std::vector<Position>& cur_cell_ptrs, c
     return false;
 }
 
-//bool Cell::CheckCyclicDependencies(const std::vector<Position>& cur_ref_cells) const {
-//    std::set<const Cell*> set_of_cur_ref_cells, visited;
-//    std::vector<const Cell*> need_to_visit;
-//
-//    for (auto pos : cur_ref_cells) {
-//        set_of_cur_ref_cells.insert(sheet_.GetConcreteCell(pos));
-//        
-//    }
-//    need_to_visit.push_back(this);
-//    while (!need_to_visit.empty()) {
-//        const Cell* cur = need_to_visit.back();
-//        need_to_visit.pop_back();
-//        visited.insert(cur);
-//        if (set_of_cur_ref_cells.find(cur) == set_of_cur_ref_cells.end()) {
-//            for (const Cell* dependent : cur->dependent_cells_) {
-//                if (visited.find(dependent) == visited.end()) {
-//                    need_to_visit.push_back(dependent);
-//                }
-//            }
-//        }
-//        else {
-//            return true;
-//        }
-//    }
-//    return false;
-//}
-
 void Cell::InvalidateCache() {
     impl_->InvalidateCache();
 }
