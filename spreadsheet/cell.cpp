@@ -155,29 +155,34 @@ void Cell::Set(const std::string& text, Position pos) {
     impl_ = std::move(new_impl);
 
     //For each ref cell, clear the reference from dependent_cells about the current cell
-    for (const auto& pos : old_impl.get()->GetReferencedCells()) {
-        Cell* refrenced = sheet_.GetConcreteCell(pos);
+    for (const auto& pos_of_old_ref_cell : old_impl.get()->GetReferencedCells()) {
+        Cell* refrenced = sheet_.GetConcreteCell(pos_of_old_ref_cell);
         refrenced->dependent_cells_.erase(this);
     }
     //set new reference in dependent_cells_ of referenced cells
-    for (const auto& pos : impl_->GetReferencedCells()) {
+    for (const auto& pos_of_new_ref_cell : impl_->GetReferencedCells()) {
 
-        Cell* refrenced = sheet_.GetConcreteCell(pos);
+        Cell* refrenced = sheet_.GetConcreteCell(pos_of_new_ref_cell);
 
         if (!refrenced) {
-            sheet_.SetCell(pos, "");
-            refrenced = sheet_.GetConcreteCell(pos);
+            sheet_.SetCell(pos_of_new_ref_cell, "");
+            refrenced = sheet_.GetConcreteCell(pos_of_new_ref_cell);
         }
         refrenced->AddDependentCell(this);
     }
-    // invalidate cache in dependent cells
-    for (const auto& refrenced : dependent_cells_) {
+    // recursive invalidate cache in dependent cells
+    InvalidateCacheInDependentCells(dependent_cells_);
+}
+void Cell::InvalidateCacheInDependentCells(const std::unordered_set<Cell*, PositionHasher>& dependent_cells) {
+    for (const auto& refrenced : dependent_cells) {
         refrenced->InvalidateCache();
+        //The cache needs to be cleared for all cells that in any way depend on this one
+        refrenced->InvalidateCacheInDependentCells(refrenced->GetDependentCells());
     }
 }
 
-void Cell::Clear() {
-    impl_ = std::make_unique<EmptyImpl>();
+void Cell::Clear(const Position& pos) {
+    this->Set("", pos);
 }
 
 Cell::Value Cell::GetValue() const {
@@ -198,21 +203,24 @@ std::unordered_set<Cell*, Cell::PositionHasher> Cell::GetDependentCells() const 
 void Cell::AddDependentCell(Cell* pos) {
     dependent_cells_.insert(pos);
 }
-bool Cell::CheckCyclicDependencies(const std::vector<Position>& cur_cell_ptrs, const Position& end) const {
-    for (const auto& cell : cur_cell_ptrs) {
+bool Cell::CheckCyclicDependencies(const std::vector<Position>& referenced_cells, const Position& end) const {
+    std::unordered_set<const Cell*, PositionHasher> visited;
+    for (const auto& cell : referenced_cells) {
         if (cell == end) {
             return true;
         }
         const Cell* ref_cell_ptr = sheet_.GetConcreteCell(cell);
-        if (!ref_cell_ptr) {
-            sheet_.SetCell(cell, "");
-            ref_cell_ptr = sheet_.GetConcreteCell(cell);
-        }
-        if (this == ref_cell_ptr) {
-            return true;
-        }
-        if (ref_cell_ptr->CheckCyclicDependencies(ref_cell_ptr->GetReferencedCells(), end)) {
-            return true;
+        if (!visited.count(ref_cell_ptr)) {
+            visited.insert(ref_cell_ptr);
+
+            if (!ref_cell_ptr) {
+                sheet_.SetCell(cell, "");
+                ref_cell_ptr = sheet_.GetConcreteCell(cell);
+            }
+            
+            if (ref_cell_ptr->CheckCyclicDependencies(ref_cell_ptr->GetReferencedCells(), end)) {
+                return true;
+            }
         }
     }
     return false;

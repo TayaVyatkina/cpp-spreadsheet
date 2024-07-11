@@ -14,7 +14,7 @@ public:
     ~Cell();
 
     void Set(const std::string& text, Position pos);
-    void Clear();
+    void Clear(const Position&);
 
     CellInterface::Value GetValue() const override;
     std::string GetText() const override;
@@ -51,5 +51,5 @@ private:
     Sheet& sheet_;
     std::unordered_set<Cell*, PositionHasher> dependent_cells_;  
     bool CheckCyclicDependencies(const std::vector<Position>&, const Position&) const;
-    
+    void InvalidateCacheInDependentCells(const std::unordered_set<Cell*, PositionHasher>& dependent_cells);
 };

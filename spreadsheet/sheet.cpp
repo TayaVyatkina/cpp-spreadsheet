@@ -81,15 +81,8 @@ void Sheet::ClearCell(Position pos) {
             sheet_.at(pos.row).at(pos.col).reset();
         }
         else {
-            // clear cache of dependent cells
-            for (const auto& cell : sheet_.at(pos.row).at(pos.col).get()->GetDependentCells()) {
-                cell->InvalidateCache();
-            }
-            // set EmptyImpl
-            sheet_.at(pos.row).at(pos.col).get()->Clear();
-        }
-        
-        
+            sheet_.at(pos.row).at(pos.col).get()->Clear(pos);
+        }       
     }   
 }
 
