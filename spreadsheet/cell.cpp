@@ -33,7 +33,7 @@ public:
     }
 
     std::string GetText() const override {
-        return "";
+        return std::string();
     }
 
     std::vector<Position> GetReferencedCells() const override {
@@ -165,7 +165,7 @@ void Cell::Set(const std::string& text, Position pos) {
         Cell* refrenced = sheet_.GetConcreteCell(pos_of_new_ref_cell);
 
         if (!refrenced) {
-            sheet_.SetCell(pos_of_new_ref_cell, "");
+            sheet_.SetCell(pos_of_new_ref_cell, std::string());
             refrenced = sheet_.GetConcreteCell(pos_of_new_ref_cell);
         }
         refrenced->AddDependentCell(this);
@@ -175,14 +175,16 @@ void Cell::Set(const std::string& text, Position pos) {
 }
 void Cell::InvalidateCacheInDependentCells(const std::unordered_set<Cell*, PositionHasher>& dependent_cells) {
     for (const auto& refrenced : dependent_cells) {
-        refrenced->InvalidateCache();
-        //The cache needs to be cleared for all cells that in any way depend on this one
-        refrenced->InvalidateCacheInDependentCells(refrenced->GetDependentCells());
+        if (refrenced->IsCacheValid()) {
+            refrenced->InvalidateCache();
+            //The cache needs to be cleared for all cells that in any way depend on this one
+            refrenced->InvalidateCacheInDependentCells(refrenced->GetDependentCells());
+        }       
     }
 }
 
 void Cell::Clear(const Position& pos) {
-    this->Set("", pos);
+    this->Set(std::string(), pos);
 }
 
 Cell::Value Cell::GetValue() const {
@@ -214,7 +216,7 @@ bool Cell::CheckCyclicDependencies(const std::vector<Position>& referenced_cells
             visited.insert(ref_cell_ptr);
 
             if (!ref_cell_ptr) {
-                sheet_.SetCell(cell, "");
+                sheet_.SetCell(cell, std::string());
                 ref_cell_ptr = sheet_.GetConcreteCell(cell);
             }
             
