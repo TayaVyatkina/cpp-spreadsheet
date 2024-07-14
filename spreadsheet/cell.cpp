@@ -147,7 +147,9 @@ void Cell::Set(const std::string& text, Position pos) {
     
     const auto cur_ref_cells = new_impl->GetReferencedCells();
     if (!cur_ref_cells.empty()) {
-        if (CheckCyclicDependencies(cur_ref_cells, pos)) {
+        // save all visited cells from all function calls for this Cell::Set iteration
+        std::unordered_set<const Cell*, PositionHasher> visited;
+        if (CheckCyclicDependencies(cur_ref_cells, pos, visited)) {
             throw CircularDependencyException("Circular dependency!");
         }      
     }  
@@ -205,8 +207,8 @@ std::unordered_set<Cell*, Cell::PositionHasher> Cell::GetDependentCells() const 
 void Cell::AddDependentCell(Cell* pos) {
     dependent_cells_.insert(pos);
 }
-bool Cell::CheckCyclicDependencies(const std::vector<Position>& referenced_cells, const Position& end) const {
-    std::unordered_set<const Cell*, PositionHasher> visited;
+bool Cell::CheckCyclicDependencies(const std::vector<Position>& referenced_cells, const Position& end, std::unordered_set<const Cell*, PositionHasher>& visited) const {
+
     for (const auto& cell : referenced_cells) {
         if (cell == end) {
             return true;
@@ -220,7 +222,7 @@ bool Cell::CheckCyclicDependencies(const std::vector<Position>& referenced_cells
                 ref_cell_ptr = sheet_.GetConcreteCell(cell);
             }
             
-            if (ref_cell_ptr->CheckCyclicDependencies(ref_cell_ptr->GetReferencedCells(), end)) {
+            if (ref_cell_ptr->CheckCyclicDependencies(ref_cell_ptr->GetReferencedCells(), end, visited)) {
                 return true;
             }
         }

@@ -50,6 +50,6 @@ private:
     std::unique_ptr<Impl> impl_;
     Sheet& sheet_;
     std::unordered_set<Cell*, PositionHasher> dependent_cells_;  
-    bool CheckCyclicDependencies(const std::vector<Position>&, const Position&) const;
+    bool CheckCyclicDependencies(const std::vector<Position>&, const Position&, std::unordered_set<const Cell*, PositionHasher>& visited) const;
     void InvalidateCacheInDependentCells(const std::unordered_set<Cell*, PositionHasher>& dependent_cells);
 };
